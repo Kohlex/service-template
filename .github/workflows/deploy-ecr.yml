@@ -18,6 +18,8 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # Only run if ECR_REPOSITORY is configured (skip for template repo itself)
+    if: ${{ vars.ECR_REPOSITORY != '' }}
 
     steps:
       - name: Checkout code
