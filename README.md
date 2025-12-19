@@ -1,32 +1,57 @@
 # Kohlex Service Template
 
-Auto-generated service from the Kohlex IAM provisioning system.
+This is the template repository for auto-provisioning new Kohlex platform services.
 
-## Setup
+## Structure
 
-1. Clone this repository
-2. Copy `.env.example` to `.env` and configure
-3. Run `npm install`
-4. Run `npm run dev` for development
+```
+├── src/
+│   └── server.ts      # Express API server
+├── web/
+│   └── app/
+│       ├── layout.tsx # Next.js layout
+│       └── page.tsx   # Landing page
+├── Dockerfile         # Multi-stage build (API + Web)
+└── .github/workflows/ # GitHub Actions deployment
+```
 
-## Deployment
+## Features
 
-This service deploys automatically via GitHub Actions when you push to `main`.
+- **API Server**: Express.js with health checks
+- **Web Frontend**: Next.js landing page
+- **Auto-deployment**: GitHub Actions to ECR → EC2
+- **Multi-process**: Supervisor runs both API and Web
 
-### Required GitHub Actions Variables
+## GitHub Variables (set by provisioning)
 
-Set these in your repository settings under Settings > Secrets and variables > Actions > Variables:
+| Variable | Description |
+|----------|-------------|
+| `SERVICE_NAME` | Display name (e.g., "Invoice Manager") |
+| `SERVICE_SLUG` | URL slug (e.g., "invoice") |
+| `ECR_REPOSITORY` | ECR repo name |
+| `CONTAINER_NAME` | Docker container name |
+| `API_PORT` | API server port |
+| `WEB_PORT` | Web server port |
 
-- `ECR_REPOSITORY` - ECR repository name (e.g., `kohlex-myservice-service`)
-- `CONTAINER_NAME` - Docker container name (e.g., `myservice-service`)
-- `API_PORT` - Port the service runs on (e.g., `3060`)
-
-### Required GitHub Actions Secrets
+## Required GitHub Secrets
 
 - `EC2_SSH_KEY` - SSH private key for EC2 deployment
 
+## Local Development
+
+```bash
+# API
+npm install
+npm run dev
+
+# Web
+cd web
+npm install
+npm run dev
+```
+
 ## Endpoints
 
-- `GET /` - Service info
-- `GET /health` - Health check
-- `GET /ready` - Readiness check
+- `GET /` - Landing page (web)
+- `GET /{slug}/api/health` - API health check
+- `GET /{slug}/api/ready` - API readiness check

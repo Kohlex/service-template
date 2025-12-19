@@ -14,6 +14,9 @@ env:
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   CONTAINER_NAME: ${{ vars.CONTAINER_NAME }}
   API_PORT: ${{ vars.API_PORT }}
+  WEB_PORT: ${{ vars.WEB_PORT }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+  SERVICE_SLUG: ${{ vars.SERVICE_SLUG }}
 
 jobs:
   build-and-deploy:
@@ -31,14 +34,24 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install API dependencies
         run: npm ci
 
-      - name: TypeScript check
+      - name: Install Web dependencies
+        run: cd web && npm ci
+
+      - name: TypeScript check (API)
         run: npm run typecheck
 
-      - name: Build
+      - name: Build API
         run: npm run build
+
+      - name: Build Web
+        run: cd web && npm run build
+        env:
+          SERVICE_NAME: ${{ vars.SERVICE_NAME }}
+          SERVICE_SLUG: ${{ vars.SERVICE_SLUG }}
+          BASE_PATH: /${{ vars.SERVICE_SLUG }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -55,7 +68,12 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker build \
+            --build-arg SERVICE_NAME="${{ vars.SERVICE_NAME }}" \
+            --build-arg SERVICE_SLUG="${{ vars.SERVICE_SLUG }}" \
+            --build-arg BASE_PATH="/${{ vars.SERVICE_SLUG }}" \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
@@ -76,19 +94,22 @@ jobs:
             docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
             docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
 
-            # Run new container
+            # Run new container with both API and Web ports
             docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --network kohlex-network \
-              -p ${{ env.API_PORT }}:${{ env.API_PORT }} \
-              -e PORT=${{ env.API_PORT }} \
-              -e SERVICE_NAME=${{ env.CONTAINER_NAME }} \
+              -p ${{ env.WEB_PORT }}:3000 \
+              -p ${{ env.API_PORT }}:3001 \
+              -e PORT=3001 \
+              -e WEB_PORT=3000 \
+              -e SERVICE_NAME="${{ vars.SERVICE_NAME }}" \
+              -e SERVICE_SLUG="${{ vars.SERVICE_SLUG }}" \
               -e NODE_ENV=production \
               --restart unless-stopped \
               743143972162.dkr.ecr.us-east-1.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
 
             # Health check
-            sleep 5
+            sleep 10
             curl -f http://localhost:${{ env.API_PORT }}/health || exit 1
 
       - name: Cleanup old ECR images
